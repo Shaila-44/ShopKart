@@ -1,0 +1,174 @@
+import { apiService, service } from './apiService';
+import { TokenManager } from '../services/TokenManager';
+import { STORAGE_KEYS } from '../constants';
+import type { User, AuthResponse } from '../types';
+
+// Auth Service
+export const authService = {
+    loginUser: async (identifier: string, password: string): Promise<AuthResponse> => {
+        try {
+            const response = await service<any>({
+                url: '/login',
+                method: 'post',
+                data: { identifier, password },
+            });
+
+            if (response.success && response.data?.token) {
+                await TokenManager.setToken(response.data.token);
+
+                // Fetch the user profile after login
+                const userResult = await authService.getCurrentUser();
+                if (!userResult?.user) {
+                    await TokenManager.clearToken();
+                    return {
+                        success: false,
+                        message: 'Login failed to load user profile',
+                    };
+                }
+
+                return {
+                    success: true,
+                    message: 'Login successful',
+                    token: response.data.token,
+                    user: userResult.user
+                };
+            }
+
+            return {
+                success: false,
+                message: response.data?.error || response.data?.errors?.join(', ') || 'Invalid credentials',
+            };
+        } catch (error: any) {
+            return {
+                success: false,
+                message: error.message || 'Login failed',
+            };
+        }
+    },
+
+    registerUser: async (userData: {
+        name: string;
+        email: string;
+        password: string;
+        phone?: string;
+    }): Promise<AuthResponse> => {
+        try {
+            const response = await service<any>({
+                url: '/signup',
+                method: 'post',
+                data: {
+                    user: {
+                        name: userData.name,
+                        email_address: userData.email,
+                        phone_number: userData.phone,
+                        password: userData.password,
+                        password_confirmation: userData.password,
+                        org_id: 1,
+                        role: 'customer'
+                    }
+                },
+            });
+
+            if (response.success && response.data?.token) {
+                await TokenManager.setToken(response.data.token);
+
+                // Fetch the user profile after signup
+                const userResult = await authService.getCurrentUser();
+                if (!userResult?.user) {
+                    await TokenManager.clearToken();
+                    return {
+                        success: false,
+                        message: 'Registration failed to load user profile',
+                    };
+                }
+
+                return {
+                    success: true,
+                    message: 'Registration successful',
+                    token: response.data.token,
+                    user: userResult.user,
+                    role: response.data.role || 'customer'
+                };
+            }
+
+            return {
+                success: false,
+                message: response.data?.errors?.join(', ') || response.data?.error || 'Registration failed',
+            };
+        } catch (error: any) {
+            return {
+                success: false,
+                message: error.message || 'Registration failed',
+            };
+        }
+    },
+
+    logoutUser: async (): Promise<void> => {
+        try {
+            await apiService.delete('/logout');
+        } catch (error) {
+            console.error('Logout request failed:', error);
+        } finally {
+            await TokenManager.clearToken();
+            if (typeof window !== 'undefined') {
+                localStorage.removeItem(STORAGE_KEYS.USER_DATA);
+            }
+        }
+    },
+
+    getCurrentUser: async (): Promise<{ success: boolean; user?: User } | null> => {
+        try {
+            const hasToken = TokenManager.hasValidToken();
+            if (!hasToken) return null;
+
+            const response = await apiService.get('/me');
+
+            if (!response.success || !response.data) {
+                return null;
+            }
+
+            const userData = response.data;
+            const user: User = {
+                id: userData.id.toString(),
+                name: userData.name || userData.email_address?.split('@')[0] || 'User',
+                email: userData.email_address,
+                phone: userData.phone_number,
+                role: userData.role || 'customer',
+                emailVerified: true,
+                createdAt: userData.created_at || new Date().toISOString(),
+            };
+
+            localStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(user));
+
+            return {
+                success: true,
+                user,
+            };
+        } catch (error) {
+            console.error('Error fetching current user:', error);
+            return null;
+        }
+    },
+
+    isAuthenticated: (): boolean => {
+        return TokenManager.hasValidToken();
+    },
+
+    sendPasswordResetEmail: async (email: string): Promise<any> => {
+        return apiService.post('/passwords', { email });
+    },
+
+    resetPasswordWithToken: async (token: string, password: string): Promise<any> => {
+        return apiService.put(`/passwords/${token}`, {
+            token,
+            password,
+            password_confirmation: password
+        });
+    },
+
+    isAdmin: (user: User | null): boolean => {
+        return user?.role === 'admin';
+    }
+};
+
+export default authService;

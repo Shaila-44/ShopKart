@@ -1,0 +1,26 @@
+class ProductBlueprint < Blueprinter::Base
+  identifier :id
+
+  fields :org_id,
+         :name,
+         :description,
+         :status,
+         :category_id,
+         :created_at,
+         :updated_at
+
+  association :category, blueprint: CategoryBlueprint
+  association :variants, blueprint: ::ProductVariantBlueprint
+  association :product_attributes, blueprint: ::ProductAttributeBlueprint
+
+  field :images do |product|
+    next [] unless product.images.attached?
+
+    product.images.attachments.map do |attachment|
+      {
+        id: attachment.id,
+        url: Rails.application.routes.url_helpers.rails_blob_url(attachment)
+      }
+    end
+  end
+end

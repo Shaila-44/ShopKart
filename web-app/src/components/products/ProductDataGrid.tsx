@@ -1,0 +1,327 @@
+import { DataGrid, GridColDef } from "@mui/x-data-grid";
+import { Edit, Trash2, Package } from "lucide-react";
+
+type Product = {
+    id: number;
+    name: string;
+    slug: string;
+    description?: string;
+    status: string;
+    category?: {
+        id: number;
+        name: string;
+    };
+    variants?: Array<{
+        id: number;
+        sku: string;
+        price: number;
+        stock: number;
+    }>;
+    images?: { id: number; url: string }[];
+    created_at: string;
+};
+
+type Props = {
+    rows: Product[];
+    page: number;
+    pageSize: number;
+    rowCount: number;
+    loading: boolean;
+    autoHeight?: boolean;
+    onPageChange: (page: number) => void;
+    onPageSizeChange: (pageSize: number) => void;
+    onEdit: (product: Product) => void;
+    onDelete: (product: Product) => void;
+    onView: (product: Product) => void;
+};
+
+export default function ProductDataGrid({
+    rows,
+    page,
+    pageSize,
+    rowCount,
+    loading,
+    autoHeight,
+    onPageChange,
+    onPageSizeChange,
+    onEdit,
+    onDelete,
+    onView,
+
+}: Props) {
+
+    const showPagination = rowCount > pageSize;
+
+    const columns: GridColDef[] = [
+        {
+            field: "serial",
+            headerName: "S.No",
+            width: 50,
+            align: "center",
+            headerAlign: "center",
+            sortable: false,
+            renderCell: (params) => {
+                const rowIndex = params.api.getRowIndexRelativeToVisibleRows(params.id);
+                return (page - 1) * pageSize + rowIndex + 1;
+            },
+        },
+        {
+            field: "image",
+            headerName: "Image",
+            width: 80,
+            sortable: false,
+            renderCell: (params) => {
+                const product = params.row;
+                const primaryImage = product.images?.[0]?.url;
+
+                return (
+                    <div className="flex items-center justify-center w-full h-full">
+                        {primaryImage ? (
+                            <img
+                                src={primaryImage}
+                                alt={product.name}
+                                className="w-10 h-10 rounded-lg object-cover shadow-sm"
+                            />
+                        ) : (
+                            <div className="w-10 h-10 bg-neutral-100 rounded-lg flex items-center justify-center text-xs text-neutral-500">
+                                No Img
+                            </div>
+                        )}
+                    </div>
+                );
+            },
+        },
+        {
+            field: "name",
+            headerName: "Name",
+            flex: 1,
+            minWidth: 160,
+            renderCell: (params) => {
+                const product = params.row;
+
+                return (
+                    <div
+                        className="flex items-center gap-3 cursor-pointer min-w-0"
+                        onClick={() => onView(product)}
+                    >
+                        <div className="min-w-0">
+                            <p className="font-semibold text-neutral-900 truncate">
+                                {product.name}
+                            </p>
+                        </div>
+                    </div>
+                );
+            },
+        },
+        {
+            field: "category",
+            headerName: "Category",
+            width: 160,
+            valueGetter: (_value, row) => row.category?.name || "",
+            renderCell: (params) => (
+                <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 flex items-center justify-center">
+                        <Package className="w-4 h-4 text-neutral-400 flex-shrink-0" />
+                    </div>
+                    <span className="text-neutral-700">
+                        {params.row.category?.name || "N/A"}
+                    </span>
+                </div>
+            ),
+        },
+        {
+            field: "price",
+            headerName: "Price",
+            width: 130,
+            valueGetter: (_value, row) => {
+                const variants = row.variants || [];
+                if (!variants.length) return 0;
+
+                const prices = variants.map((v: any) => Number(v.price));
+                return Math.min(...prices);
+            },
+            renderCell: (params) => {
+                const variants = params.row?.variants;
+
+                if (!variants.length) {
+                    return <span className="text-neutral-400">N/A</span>;
+                }
+
+                const prices = variants?.map((v: any) => Number(v.price)) || [];
+                const min = Math.min(...prices);
+                const max = Math.max(...prices);
+
+                const format = (val: number) =>
+                    `₹${val.toLocaleString("en-IN", {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 2,
+                    })}`;
+
+                const display =
+                    min === max
+                        ? format(min)
+                        : `${format(min)} - ${format(max)}`;
+
+                return (
+                    <span className="font-semibold text-neutral-900">
+                        {display}
+                    </span>
+                );
+            },
+        },
+        {
+            field: "stock",
+            headerName: "Stock",
+            width: 140,
+            valueGetter: (_value, row) => {
+                const variants = row.variants || [];
+                return variants.reduce(
+                    (sum: number, v: any) => sum + Number(v.stock || 0),
+                    0
+                );
+            },
+            renderCell: (params) => {
+                const variants = params.row.variants || [];
+
+                const totalStock = variants.reduce(
+                    (sum: number, v: any) => sum + Number(v.stock || 0),
+                    0
+                );
+
+                let badgeClass = "";
+                let badgeText = "";
+
+                if (totalStock <= 0) {
+                    badgeClass = "bg-red-100 text-red-700 border-red-200";
+                    badgeText = "Out of Stock";
+                } else if (totalStock < 20) {
+                    badgeClass = "bg-amber-100 text-amber-700 border-amber-200";
+                    badgeText = `Low (${totalStock})`;
+                } else {
+                    badgeClass = "bg-green-100 text-green-700 border-green-200";
+                    badgeText = `In Stock (${totalStock})`;
+                }
+
+                return (
+                    <span
+                        className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border ${badgeClass}`}
+                    >
+                        {badgeText}
+                    </span>
+                );
+            },
+        },
+        {
+            field: "status",
+            headerName: "Status",
+            width: 100,
+            renderCell: (params) => {
+                const isActive = params.value === "active";
+
+                return (
+                    <span
+                        className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border ${isActive
+                            ? "bg-blue-100 text-blue-700 border-blue-200"
+                            : "bg-neutral-100 text-neutral-600 border-neutral-200"
+                            }`}
+                    >
+                        {isActive ? "Active" : "Inactive"}
+                    </span>
+                );
+            },
+        },
+        {
+            field: "actions",
+            headerName: "Actions",
+            width: 80,
+            sortable: false,
+            renderCell: (params) => (
+                <div className="w-full h-full flex items-center gap-1">
+                    <button
+                        onClick={() => onEdit(params.row)}
+                        className="p-1.5 hover:bg-primary-50 rounded-lg transition-colors group"
+                        title="Edit product"
+                    >
+                        <Edit className="w-4 h-4 text-primary-600 group-hover:text-primary-700" />
+                    </button>
+                    <button
+                        onClick={() => onDelete(params.row)}
+                        className="p-1.5 hover:bg-red-50 rounded-lg transition-colors group"
+                        title="Delete product"
+                    >
+                        <Trash2 className="w-4 h-4 text-red-600 group-hover:text-red-700" />
+                    </button>
+                </div>
+            ),
+        },
+    ];
+
+    return (
+        <div style={{ height: autoHeight ? "auto" : 600, width: "100%" }}>
+            <DataGrid
+                autoHeight={autoHeight}
+                rows={rows}
+                columns={columns}
+                getRowId={(row) => row.id}
+                loading={loading}
+                paginationMode="server"
+                paginationModel={{
+                    page: page - 1,
+                    pageSize: pageSize,
+                }}
+                rowCount={rowCount}
+                onPaginationModelChange={(model) => {
+                    if (model.pageSize !== pageSize) {
+                        onPageSizeChange(model.pageSize);
+                        onPageChange(1);
+                    } else if (model.page + 1 !== page) {
+                        onPageChange(model.page + 1);
+                    }
+                }}
+                pagination={showPagination || undefined}
+                pageSizeOptions={showPagination ? [5, 10, 20, 50] : []}
+                disableRowSelectionOnClick
+                getRowHeight={() => 'auto'}
+                sx={{
+                    border: "none",
+                    fontFamily: "inherit",
+                    "& .MuiDataGrid-cell": {
+                        borderBottom: "1px solid #f1f5f9",
+                        paddingTop: "16px",
+                        paddingBottom: "16px",
+                    },
+                    "& .MuiDataGrid-columnHeaders": {
+                        backgroundColor: "#f8fafc",
+                        borderBottom: "1px solid #e2e8f0",
+                        borderTop: "none",
+                        fontWeight: 700,
+                        fontSize: "0.75rem",
+                        letterSpacing: "0.05em",
+                        textTransform: "uppercase",
+                        color: "#64748b",
+                    },
+                    "& .MuiDataGrid-row": {
+                        transition: "background-color 0.2s, transform 0.2s",
+                    },
+                    "& .MuiDataGrid-row:hover": {
+                        backgroundColor: "#f8fafc",
+                        transform: "scale(1.001)",
+                    },
+                    "& .MuiDataGrid-footerContainer": {
+                        borderTop: "1px solid #e2e8f0",
+                        backgroundColor: "#ffffff",
+                    },
+                    "& .MuiDataGrid-virtualScroller": {
+                        backgroundColor: "#ffffff",
+                    },
+                    "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within": {
+                        outline: "none",
+                    },
+                    "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within": {
+                        outline: "none",
+                    },
+                }}
+            />
+        </div>
+    );
+}

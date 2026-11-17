@@ -1,0 +1,58 @@
+Rails.application.routes.draw do
+  # Swagger UI
+  if Rails.env.development? || Rails.env.test?
+    mount Rswag::Ui::Engine => "/api-docs"
+    mount Rswag::Api::Engine => "/api-docs"
+  end
+
+  namespace :api do
+    namespace :v1 do
+      # Auth
+      post   "signup", to: "registrations#create"
+      post   "login",  to: "sessions#create"
+      delete "logout", to: "sessions#destroy"
+      get    "me",     to: "users#me"
+
+      resource :session, only: [:create, :destroy]
+      resources :passwords, param: :token
+
+      # Cart
+      resource :cart, only: [:show] do
+        collection do
+          post   "add",    to: "carts#add_item"
+          get    "",       to: "carts#show"
+          put    "update", to: "carts#update_item"
+          delete "remove", to: "carts#remove_item"
+        end
+
+        post   :add_item
+        patch  "items/:id", action: :update_item
+        delete "items/:id", action: :remove_item
+      end
+
+      # Orders
+      resources :orders, only: [:index, :show, :create, :update] do
+        member do
+          patch :cancel
+        end
+      end
+
+      # Catalog
+      resources :categories
+
+      resources :products do
+        resources :variants, controller: "product_variants"
+      end
+
+      resources :users
+      
+      resources :favourites, only: [:index, :create], param: :product_id
+      delete "favourites/:product_id", to: "favourites#destroy"
+
+      get "dashboard", to: "dashboard#index"
+    end
+  end
+
+  # Health check
+  get "up" => "rails/health#show", as: :rails_health_check
+end
