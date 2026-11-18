@@ -1,0 +1,11 @@
+one:
+  organization: one
+  category: one
+  name: Oxford Shirt
+  status: active
+
+two:
+  organization: two
+  category: two
+  name: Other Product
+  status: active

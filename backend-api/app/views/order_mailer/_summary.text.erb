@@ -1,0 +1,21 @@
+Order: <%= @order.order_number %>
+Status: <%= @order.status.capitalize %>
+Placed: <%= @order.created_at.strftime("%-d %b %Y, %H:%M") %>
+
+Items
+<% @items.each do |item| -%>
+- <%= item.product_name %> x <%= item.quantity %> @ <%= inr(item.price) %> = <%= inr(item.total) %>
+<% end -%>
+
+Subtotal: <%= inr(@order.subtotal) %>
+Shipping: <%= @order.shipping_fee.to_d.zero? ? "Free" : inr(@order.shipping_fee) %>
+Tax (GST 18%): <%= inr(@order.tax) %>
+Order total: <%= inr(@order.total) %>
+<% lines = address_lines(@address) -%>
+<% if lines.any? -%>
+
+Shipping to:
+<%= lines.join("\n") %>
+<% end -%>
+
+View your order: <%= @orders_url %>

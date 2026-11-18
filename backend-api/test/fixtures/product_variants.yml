@@ -1,0 +1,13 @@
+one:
+  product: one
+  name: Oxford Shirt - M
+  sku: OXF-M
+  price: 600.00
+  stock: 10
+
+two:
+  product: two
+  name: Other - Default
+  sku: OTH-1
+  price: 100.00
+  stock: 5

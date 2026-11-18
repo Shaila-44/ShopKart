@@ -16,6 +16,7 @@ import { addWishlistListener, getWishlist } from '../utils/wishlist';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import Input from '../components/ui/Input';
 import UserAPI from '../api/users';
+import OrderStatusTimeline from '../components/orders/OrderStatusTimeline';
 
 type Tab = 'profile' | 'orders' | 'wishlist';
 
@@ -28,6 +29,7 @@ const TAB_META: Record<Tab, { icon: typeof User; label: string }> = {
 const ORDER_STATUS_COLORS: Record<string, string> = {
   pending: 'bg-amber-50 text-amber-700 border-amber-200',
   processing: 'bg-primary-50 text-primary-700 border-primary-200',
+  confirmed: 'bg-indigo-50 text-indigo-700 border-indigo-200',
   shipped: 'bg-blue-50 text-blue-700 border-blue-200',
   delivered: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   cancelled: 'bg-red-50 text-red-700 border-red-200',
@@ -77,8 +79,8 @@ export default function Profile() {
     setActiveTab((current) => (current === nextTab ? current : nextTab));
   }, [searchParams]);
 
-  const fetchOrders = async () => {
-    setOrdersLoading(true);
+  const fetchOrders = async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) setOrdersLoading(true);
 
     try {
       const res = await orderService.getOrders();
@@ -102,6 +104,21 @@ export default function Profile() {
     if (activeTab === "wishlist") {
       fetchWishlist();
     }
+  }, [activeTab]);
+
+  // Re-fetch order statuses when the customer comes back to this tab/window,
+  // so admin status changes show up without a manual reload.
+  useEffect(() => {
+    if (activeTab !== "orders") return;
+    const refresh = () => {
+      if (document.visibilityState === "visible") fetchOrders({ silent: true });
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, [activeTab]);
 
   const fetchWishlist = async () => {
@@ -454,7 +471,7 @@ export default function Profile() {
                                     )}
                                     <p className="mt-2 flex items-center gap-1.5 text-xs text-primary-600 font-bold bg-primary-50 w-fit px-2.5 py-1 rounded-lg">
                                       {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                                      {isExpanded ? 'Hide items' : 'View structured items'}
+                                      {isExpanded ? 'Hide details' : 'Track order & view items'}
                                     </p>
                                   </div>
                                 </button>
@@ -498,7 +515,17 @@ export default function Profile() {
                               {isExpanded && (
                                 <div className="mt-5 border-t border-neutral-100 pt-5 animate-fade-in">
                                   <p className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-4 px-2">
-                                    Items Shipped
+                                    Order Status
+                                  </p>
+                                  <div className="mb-6">
+                                    <OrderStatusTimeline
+                                      status={order.status}
+                                      events={order.status_events}
+                                      createdAt={order.created_at}
+                                    />
+                                  </div>
+                                  <p className="text-xs font-bold uppercase tracking-widest text-neutral-400 mb-4 px-2">
+                                    Items
                                   </p>
                                   <div className="space-y-3">
                                     {(order.order_items || []).map((item: any) => (

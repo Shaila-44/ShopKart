@@ -1,0 +1,9 @@
+one:
+  name: Test Store
+  slug: test-store
+  is_active: true
+
+two:
+  name: Other Store
+  slug: other-store
+  is_active: true

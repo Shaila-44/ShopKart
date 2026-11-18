@@ -23,6 +23,7 @@ import { CartProvider } from './contexts/CartContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AdminCategories from './pages/admin/AdminCategories';
+import AdminAutomation from './pages/admin/AdminAutomation';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -82,6 +83,11 @@ function App() {
               <Route path={ROUTES.ADMIN_USERS} element={
                 <ProtectedRoute requireAdmin>
                   <AdminLayout><AdminUsers /></AdminLayout>
+                </ProtectedRoute>
+              } />
+              <Route path={ROUTES.ADMIN_AUTOMATION} element={
+                <ProtectedRoute requireAdmin>
+                  <AdminLayout><AdminAutomation /></AdminLayout>
                 </ProtectedRoute>
               } />
               <Route path={ROUTES.ADMIN_CATEGORY} element={

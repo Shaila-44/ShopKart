@@ -19,7 +19,7 @@ class ProductBlueprint < Blueprinter::Base
     product.images.attachments.map do |attachment|
       {
         id: attachment.id,
-        url: Rails.application.routes.url_helpers.rails_blob_url(attachment)
+        url: Rails.application.routes.url_helpers.rails_blob_url(attachment),
       }
     end
   end

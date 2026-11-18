@@ -18,7 +18,8 @@ class Ability
       can :read, User, id: user.id
       can :update, User, id: user.id
       can :create, Order
-      can [:read, :update, :cancel], Order, user_id: user.id
+      # Customers may view and cancel their own orders; status/payment changes are admin-only.
+      can [:read, :cancel], Order, user_id: user.id
     end
   end
 end

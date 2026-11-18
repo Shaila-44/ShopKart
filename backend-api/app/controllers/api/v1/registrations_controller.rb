@@ -4,8 +4,9 @@ module Api
       allow_unauthenticated_access only: :create
 
       def create
-        role_name = params[:role].to_s.downcase || "user"
         user = User.new(registration_params)
+        # Self-registration always creates a customer; roles are assigned by admins only.
+        user.role = :customer
         # Ensure valid organization is assigned (fixes ID mismatch)
         user.organization = Organization.find_by(slug: "lookz-men") || Organization.first
 
@@ -16,7 +17,7 @@ module Api
             token: token,
             email: user.email_address,
             phone_number: user.phone_number,
-            role: role_name,
+            role: user.role,
             message: "User registered successfully"
           }, status: :created
         else
@@ -27,7 +28,7 @@ module Api
       private
 
       def registration_params
-        params.require(:user).permit(:email_address, :phone_number, :password, :password_confirmation, :org_id, :role, :name)
+        params.require(:user).permit(:email_address, :phone_number, :password, :password_confirmation, :name)
       end
     end
   end

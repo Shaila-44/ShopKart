@@ -6,12 +6,14 @@ module Api
       include ResponseRenderingConcern
 
       allow_unauthenticated_access only: [:create]
+      # Checkout stays open to guests, but a valid bearer token must still identify the customer.
+      before_action :authenticate_with_token, only: [:create]
       load_and_authorize_resource
       skip_load_and_authorize_resource only: [:create]
 
       def index
         orders = Order.accessible_by(current_ability)
-                      .includes(:user, order_items: :product)
+                      .includes(:user, :status_events, order_items: :product)
                       .order(created_at: :desc)
                       .paginate(page: params[:page] || 1, per_page: params[:per_page] || 10)
 
@@ -22,8 +24,8 @@ module Api
               current_page: orders.current_page,
               per_page: orders.per_page,
               total_pages: orders.total_pages,
-              total_count: orders.total_entries
-            }
+              total_count: orders.total_entries,
+            },
           }
         )
       end
@@ -47,6 +49,8 @@ module Api
         end
 
         @order.shipping_address = serialize_address(guest_shipping_address || {})
+        assign_customer_contact!
+        confirmation = nil
 
         ActiveRecord::Base.transaction do
           items = params[:items]
@@ -102,11 +106,17 @@ module Api
           unless @order.save
             raise ActiveRecord::Rollback
           end
+
+          @order.status_events.create!(from_status: nil, to_status: @order.status, changed_by: current_user)
+          confirmation = OrderNotifier.queue_confirmation!(@order)
         end
 
         if @order.persisted?
-          #Clear user's cart after successful order
-          current_user&.cart&.cart_items&.destroy_all
+          # Transaction committed: now it is safe to enqueue the confirmation email.
+          OrderNotifier.dispatch(confirmation)
+
+          # Clear the customer's cart after a successful order
+          current_user.cart&.cart_items&.destroy_all if current_user && @order.user_id == current_user.id
 
           render_success(
             OrderBlueprint.render_as_json(@order),
@@ -120,49 +130,37 @@ module Api
       end
 
       def update
-  new_status = update_params[:status]
+        attrs = update_params
 
-  if new_status.present? && !valid_status_transition?(@order.status, new_status)
-    return render_error(
-      "common.operation_failed",
-      "Invalid order status transition",
-      :unprocessable_entity
-    )
-  end
+        if attrs.key?(:status) && attrs[:status].present?
+          result = Orders::TransitionStatus.call(order: @order, to: attrs[:status], actor: current_user)
+          return render_error("common.operation_failed", result.error, :unprocessable_entity) unless result.success?
+        end
 
-  if @order.update(update_params)
-    render_success(OrderBlueprint.render_as_json(@order), "common.updated")
-  else
-    handle_response(@order)
-  end
-end
+        if attrs.key?(:payment_status) && !@order.update(payment_status: attrs[:payment_status])
+          return handle_response(@order)
+        end
+
+        render_success(OrderBlueprint.render_as_json(@order.reload), "common.updated")
+      end
+
       def cancel
-  order = Order.accessible_by(current_ability).find(params[:id])
+        order = Order.accessible_by(current_ability).find(params[:id])
 
-  unless order.status == "pending"
-    return render_error(
-      "common.operation_failed",
-      "Order cannot be cancelled unless it is pending",
-      :unprocessable_entity
-    )
-  end
+        unless order.status == "pending"
+          return render_error(
+            "common.operation_failed",
+            "Order cannot be cancelled unless it is pending",
+            :unprocessable_entity
+          )
+        end
 
-  ActiveRecord::Base.transaction do
-    order.order_items.each do |item|
-      variant = item.product_variant
-      next unless variant
+        result = Orders::TransitionStatus.call(order: order, to: "cancelled", actor: current_user)
+        return render_error("common.operation_failed", result.error, :unprocessable_entity) unless result.success?
 
-      variant.update!(stock: variant.stock + item.quantity)
-    end
+        render_success(OrderBlueprint.render_as_json(order.reload), "order_cancelled")
+      end
 
-    order.update!(status: "cancelled")
-  end
-
-  render_success(
-  OrderBlueprint.render_as_json(order),
-  "order_cancelled"
-)
-end
       private
 
       def order_params
@@ -176,17 +174,6 @@ end
       def update_params
         params.require(:order).permit(:status, :payment_status)
       end
-      def valid_status_transition?(current_status, new_status)
-  allowed_transitions = {
-    "pending" => ["confirmed", "cancelled"],
-    "confirmed" => ["shipped", "cancelled"],
-    "shipped" => ["delivered"],
-    "delivered" => [],
-    "cancelled" => []
-  }
-
-  allowed_transitions[current_status]&.include?(new_status)
-end
       def build_items
         items = params[:items]
 
@@ -222,11 +209,29 @@ end
       end
 
       def assign_order_owner!
-        owner = current_user || guest_checkout_user
+        owner = admin_selected_customer || current_user || guest_checkout_user
         return unless owner
 
         @order.organization = owner.organization
         @order.user = owner
+      end
+
+      # Admin "Add Order" sends order[user_id]: place the order on behalf of that customer.
+      def admin_selected_customer
+        user_id = params.dig(:order, :user_id)
+        return if user_id.blank? || !current_user&.admin?
+
+        User.find_by(id: user_id, org_id: current_user.org_id)
+      end
+
+      # Email/name used for notifications. Checkout form values win; account values are the fallback.
+      def assign_customer_contact!
+        address = guest_shipping_address
+        owner = @order.user
+        account_email = owner.email_address unless @order.guest?
+
+        @order.customer_email = address["email"].presence&.strip&.downcase || account_email
+        @order.customer_name = address["full_name"].presence || (owner.name unless @order.guest?)
       end
 
       def guest_checkout_user
@@ -257,7 +262,7 @@ end
 
       def guest_shipping_address
         shipping_address = order_params[:shipping_address]
-        shipping_address.respond_to?(:to_h) ? shipping_address.to_h : {}
+        shipping_address.respond_to?(:to_h) ? shipping_address.to_h.stringify_keys : {}
       end
 
       def serialize_address(address)

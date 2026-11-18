@@ -50,6 +50,14 @@ Rails.application.routes.draw do
       delete "favourites/:product_id", to: "favourites#destroy"
 
       get "dashboard", to: "dashboard#index"
+
+      # Automation (admin): notification delivery records, stats, details and retry
+      namespace :automation do
+        resources :notifications, only: [:index, :show] do
+          collection { get :summary }
+          member { post :retry, action: :resend }
+        end
+      end
     end
   end
 

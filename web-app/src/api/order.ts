@@ -10,9 +10,23 @@ export interface OrderItem {
     product?: any;
 }
 
+export interface OrderStatusEvent {
+    id: number;
+    from_status: string | null;
+    to_status: Order["status"];
+    note: string | null;
+    created_at: string;
+    changed_by_name: string | null;
+}
+
 export interface Order {
     id: number;
     order_number: string;
+    customer_name?: string | null;
+    customer_email?: string | null;
+    shipping_address?: Record<string, string>;
+    status_events?: OrderStatusEvent[];
+    updated_at?: string;
     status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled";
     payment_status: "unpaid" | "paid" | "refunded";
     subtotal: number;

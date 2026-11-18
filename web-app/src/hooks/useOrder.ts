@@ -43,6 +43,8 @@ export const useUpdateOrder = () => {
         },
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ["orders"] });
+            // A status change creates a new customer notification.
+            queryClient.invalidateQueries({ queryKey: ["automation"] });
             if (data?.id) {
                 queryClient.invalidateQueries({ queryKey: ["orders", data.id] });
             }

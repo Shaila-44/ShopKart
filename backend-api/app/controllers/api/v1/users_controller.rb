@@ -59,13 +59,10 @@ module Api
       # Strong params
       # --------------------
       def resource_params
-        params.require(:user).permit(
-          :name,
-          :email_address,
-          :phone_number,
-          :password,
-          :role
-        )
+        permitted = %i[name email_address phone_number password]
+        # Only admins may assign roles (prevents customers promoting themselves).
+        permitted << :role if current_user&.admin?
+        params.require(:user).permit(*permitted)
       end
 
       # --------------------

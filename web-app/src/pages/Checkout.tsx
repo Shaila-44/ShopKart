@@ -213,7 +213,12 @@ export default function Checkout() {
       };
       const res = await orderService.placeOrder(payload);
       if (res.success) {
-        toast.success('🎉 Order placed successfully!');
+        const orderNumber = res.data?.order_number;
+        toast.success(
+          orderNumber
+            ? `🎉 Order ${orderNumber} placed! A confirmation email is on its way.`
+            : '🎉 Order placed successfully!'
+        );
         clearCart();
         navigate(isAuthenticated ? ROUTES.ORDERS : ROUTES.HOME);
       }

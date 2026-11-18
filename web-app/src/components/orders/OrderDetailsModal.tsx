@@ -1,6 +1,18 @@
 import { Order } from "../../api/order";
 import Button from "../ui/Button";
-import { Package, Truck, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Package, Truck, CheckCircle, XCircle, Clock, Zap } from "lucide-react";
+import OrderStatusTimeline from "./OrderStatusTimeline";
+import DeliveryStatusBadge from "../automation/DeliveryStatusBadge";
+import { useNotifications } from "../../hooks/useAutomation";
+
+// Mirrors Orders::TransitionStatus::TRANSITIONS on the backend.
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+    pending: ["confirmed", "cancelled"],
+    confirmed: ["shipped", "cancelled"],
+    shipped: ["delivered"],
+    delivered: [],
+    cancelled: [],
+};
 
 interface Props {
     order: Order;
@@ -18,6 +30,8 @@ export default function OrderDetailsModal({ order, onUpdateStatus, onUpdatePayme
         { value: "cancelled", label: "Cancelled", icon: XCircle, color: "text-red-600 bg-red-50" },
     ];
     const isLocked = order?.status === "cancelled" || order?.status === "delivered";
+    const allowedNext = ALLOWED_TRANSITIONS[order?.status] ?? [];
+    const { data: notifications } = useNotifications({ order_id: order?.id, per_page: 20 }, { enabled: !!order?.id });
     return (
         <div className="space-y-8">
             {/* Header Info */}
@@ -27,10 +41,10 @@ export default function OrderDetailsModal({ order, onUpdateStatus, onUpdatePayme
                         Customer Details
                     </h3>
                     <p className="font-bold text-neutral-900">
-                        {order?.user?.name ?? "Guest"}
+                        {order?.customer_name || order?.user?.name || "Guest"}
                     </p>
                     <p className="text-sm text-neutral-600">
-                        {order?.user?.email_address ?? "N/A"}
+                        {order?.customer_email || order?.user?.email_address || "N/A"}
                     </p>
                 </div>
                 <div>
@@ -59,7 +73,8 @@ export default function OrderDetailsModal({ order, onUpdateStatus, onUpdatePayme
                             <button
                                 key={s.value}
                                 onClick={() => onUpdateStatus(s.value)}
-                                disabled={isLoading || isActive || isLocked}
+                                disabled={isLoading || isActive || isLocked || !allowedNext.includes(s.value)}
+                                title={!isActive && !allowedNext.includes(s.value) ? `Not allowed from "${order?.status}"` : undefined}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all border ${
                                     isActive
                                         ? `${s.color} border-current shadow-sm`
@@ -72,6 +87,34 @@ export default function OrderDetailsModal({ order, onUpdateStatus, onUpdatePayme
                         );
                     })}
                 </div>
+            </div>
+
+            {/* Status timeline (from order_status_events) */}
+            <OrderStatusTimeline status={order?.status} events={order?.status_events} createdAt={order?.created_at} />
+
+            {/* Automation activity for this order */}
+            <div>
+                <h3 className="text-sm font-semibold text-neutral-900 mb-3 flex items-center gap-2">
+                    <Zap className="w-4 h-4" />
+                    Customer notifications ({notifications?.data.length ?? 0})
+                </h3>
+                {notifications && notifications.data.length > 0 ? (
+                    <ul className="divide-y divide-neutral-100 border border-neutral-100 rounded-2xl">
+                        {notifications.data.map((n) => (
+                            <li key={n.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                                <div className="min-w-0">
+                                    <p className="font-medium text-neutral-900">{n.event_label}</p>
+                                    <p className="text-xs text-neutral-500 truncate">
+                                        {n.recipient ?? "no recipient"} · {new Date(n.sent_at ?? n.created_at).toLocaleString()}
+                                    </p>
+                                </div>
+                                <DeliveryStatusBadge status={n.status} />
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p className="text-sm text-neutral-500">No notifications recorded for this order.</p>
+                )}
             </div>
 
             {/* Items List */}

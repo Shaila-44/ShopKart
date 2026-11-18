@@ -28,15 +28,15 @@ export default function AdminOrders() {
     const handleUpdateStatus = async (status: string) => {
         if (!selectedOrder) return;
         try {
-            await updateMutation.mutateAsync({
+            const updated = await updateMutation.mutateAsync({
                 id: selectedOrder.id,
                 payload: { status },
             });
-            toast.success(`Order ${status}`);
-            // Update local selected state if still open
-            setSelectedOrder((prev: any) => prev ? { ...prev, status } : null);
-        } catch {
-            toast.error("Failed to update status");
+            toast.success(`Order ${status}. Customer notification queued.`);
+            // Use the server's copy so the timeline shows the new status event
+            setSelectedOrder(updated ?? ((prev: any) => prev ? { ...prev, status } : null));
+        } catch (error: any) {
+            toast.error(error?.message || "Failed to update status");
         }
     };
 

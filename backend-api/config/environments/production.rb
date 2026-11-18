@@ -12,7 +12,7 @@ Rails.application.configure do
 
   # Cache public files for 1 year
   config.public_file_server.headers = {
-    "cache-control" => "public, max-age=#{1.year.to_i}"
+    "cache-control" => "public, max-age=#{1.year.to_i}",
   }
 
   # Active Storage service
@@ -31,16 +31,31 @@ Rails.application.configure do
   # Disable deprecation logging
   config.active_support.report_deprecations = false
 
+  # Outgoing email: configured entirely through environment variables (no credentials in code).
+  if ENV["SMTP_ADDRESS"].present?
+    config.action_mailer.delivery_method = :smtp
+    config.action_mailer.smtp_settings = {
+      address: ENV["SMTP_ADDRESS"],
+      port: ENV.fetch("SMTP_PORT", 587).to_i,
+      user_name: ENV["SMTP_USERNAME"],
+      password: ENV["SMTP_PASSWORD"],
+      authentication: ENV["SMTP_USERNAME"].present? ? :plain : nil,
+      enable_starttls_auto: true,
+    }.compact
+  end
+  config.action_mailer.raise_delivery_errors = true
+  config.client_url = ENV.fetch("CLIENT_URL", "https://zilvo.ddns.net")
+
   # Mailer URL configuration
   config.action_mailer.default_url_options = {
     host: "zilvo.ddns.net",
-    protocol: "https"
+    protocol: "https",
   }
 
   # URL helpers (important for ActiveStorage / serializers / Blueprinter)
   Rails.application.routes.default_url_options = {
     host: "zilvo.ddns.net",
-    protocol: "https"
+    protocol: "https",
   }
 
   # I18n fallback

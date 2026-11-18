@@ -25,7 +25,8 @@ export const ROUTES = {
     ADMIN_PRODUCTS: '/admin/products',
     ADMIN_ORDERS: '/admin/orders',
     ADMIN_USERS: '/admin/users',
-    
+    ADMIN_AUTOMATION: '/admin/automation',
+
 } as const;
 
 // Helper function to generate product detail route
@@ -57,6 +58,11 @@ export const ADMIN_NAV_ITEMS = [
         label: 'Users',
         path: ROUTES.ADMIN_USERS,
         icon: 'Users',
+    },
+    {
+        label: 'Automation',
+        path: ROUTES.ADMIN_AUTOMATION,
+        icon: 'Zap',
     },
     
 ] as const;

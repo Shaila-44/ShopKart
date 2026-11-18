@@ -29,8 +29,15 @@ Rails.application.configure do
   # Store uploaded files on the local file system (see config/storage.yml for options).
   config.active_storage.service = :local
 
-  # Don't care if the mailer can't send.
-  config.action_mailer.raise_delivery_errors = false
+  # Deliver real SMTP mail to the local Mailpit catcher (docker-compose service "mailpit",
+  # web UI at http://localhost:8025). Errors are raised so failed deliveries are recorded.
+  config.action_mailer.delivery_method = :smtp
+  config.action_mailer.smtp_settings = {
+    address: ENV.fetch("SMTP_ADDRESS", "localhost"),
+    port: ENV.fetch("SMTP_PORT", 1025).to_i,
+  }
+  config.action_mailer.perform_deliveries = true
+  config.action_mailer.raise_delivery_errors = true
 
   # Make template changes take effect immediately.
   config.action_mailer.perform_caching = false
@@ -69,7 +76,6 @@ Rails.application.configure do
   # config.generators.apply_rubocop_autocorrect_after_generate!
   Rails.application.routes.default_url_options = {
     host: "localhost",
-    port: 3000
+    port: 3000,
   }
-  config.client_url = "http://localhost:5173"
 end

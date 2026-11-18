@@ -1,0 +1,6 @@
+#!/usr/bin/env ruby
+# Standalone Solid Queue worker (alternative to running it inside Puma via SOLID_QUEUE_IN_PUMA=1).
+require_relative "../config/environment"
+require "solid_queue/cli"
+
+SolidQueue::Cli.start(ARGV)

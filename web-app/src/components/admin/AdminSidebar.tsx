@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Package, ShoppingBag, Users, ChevronLeft, ChevronRight, Tags } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingBag, Users, ChevronLeft, ChevronRight, Tags, Zap } from 'lucide-react';
 import { ROUTES, ADMIN_NAV_ITEMS } from '../../config/routes.constants';
 
 interface AdminSidebarProps {
@@ -13,6 +13,7 @@ const iconMap = {
     Package,
     ShoppingBag,
     Users,
+    Zap,
 };
 
 export default function AdminSidebar({ isCollapsed, onToggle }: AdminSidebarProps) {
